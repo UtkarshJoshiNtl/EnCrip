@@ -2,6 +2,7 @@ import hmac       # Used to create the cryptographic signature
 import hashlib    # Provides the hashing algorithms like SHA256
 import base64     # Used to safely encode the bytes into string format
 import time       # Used to generate timestamps
+import threading   # For thread-safe token tracking
 
 # Time window configuration
 WINDOW_SIZE_SECONDS = 10  # Tokens rotate every 10 seconds
@@ -14,6 +15,57 @@ MAX_TOKEN_LIFETIME_SECONDS = 300  # Maximum absolute token lifetime (5 minutes)
 # Clock skew tolerance
 CLOCK_SKEW_TOLERANCE_SECONDS = 15  # Allow clock skew up to 15 seconds
                                     # Accommodates client-server clock differences
+
+# Replay protection configuration
+ENABLE_REPLAY_PROTECTION = True    # Enable/disable replay protection
+REPLAY_CACHE_CLEANUP_SECONDS = 60  # Clean up old entries every 60 seconds
+
+# Simple in-memory token cache for replay protection
+# Format: {token_hash: first_seen_timestamp}
+_used_tokens = {}
+_cache_lock = threading.Lock()
+_last_cleanup = 0
+
+def _cleanup_old_tokens():
+    """Remove expired tokens from the replay cache."""
+    global _last_cleanup
+    current_time = int(time.time())
+    
+    # Only run cleanup periodically
+    if current_time - _last_cleanup < REPLAY_CACHE_CLEANUP_SECONDS:
+        return
+    
+    with _cache_lock:
+        # Remove tokens older than MAX_TOKEN_LIFETIME_SECONDS
+        cutoff_time = current_time - MAX_TOKEN_LIFETIME_SECONDS
+        expired_tokens = [
+            token_hash for token_hash, seen_time in _used_tokens.items()
+            if seen_time < cutoff_time
+        ]
+        for token_hash in expired_tokens:
+            del _used_tokens[token_hash]
+        
+        _last_cleanup = current_time
+
+def _is_token_replayed(token):
+    """Check if token has been used before (replay detection)."""
+    if not ENABLE_REPLAY_PROTECTION:
+        return False
+    
+    # Create a hash of the token for storage (don't store full token)
+    token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    
+    with _cache_lock:
+        # Run cleanup periodically
+        _cleanup_old_tokens()
+        
+        # Check if token was already used
+        if token_hash in _used_tokens:
+            return True
+        
+        # Mark token as used
+        _used_tokens[token_hash] = int(time.time())
+        return False
 
 def get_time_window(timestamp=None):
     """Calculate the time window for a given timestamp (or current time)."""
@@ -63,8 +115,8 @@ def generate_token(user_id, secret_key, max_lifetime_seconds=None):
     token = f"{encoded_payload.decode('utf-8')}.{encoded_signature.decode('utf-8')}"
     return token
 
-def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance=None):
-    """Verify a token with comprehensive expiration and clock skew checks.
+def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance=None, check_replay=None):
+    """Verify a token with comprehensive expiration, clock skew, and replay checks.
     
     Args:
         token: The token string to verify
@@ -72,6 +124,7 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
         validation_window: Number of adjacent windows to allow (default: VALIDATION_WINDOW)
                           If set to 1, allows current window ±1 (total 3 windows)
         clock_skew_tolerance: Clock skew tolerance in seconds (default: CLOCK_SKEW_TOLERANCE_SECONDS)
+        check_replay: Enable replay check (default: ENABLE_REPLAY_PROTECTION)
     
     Returns:
         (bool, dict|string): True with user data if valid, False with error message if invalid
@@ -80,6 +133,8 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
         validation_window = VALIDATION_WINDOW
     if clock_skew_tolerance is None:
         clock_skew_tolerance = CLOCK_SKEW_TOLERANCE_SECONDS
+    if check_replay is None:
+        check_replay = ENABLE_REPLAY_PROTECTION
     
     current_time = int(time.time())
     
@@ -145,6 +200,10 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     # Additional check: reject tokens that are too far in the future (clock skew protection)
     if token_window > current_window + (clock_skew_tolerance // WINDOW_SIZE_SECONDS):
         return False, f"Token from future (clock skew too large: {token_window - current_window} seconds)"
+    
+    # Check for replay attack
+    if check_replay and _is_token_replayed(token):
+        return False, "Token already used (replay attack detected)"
     
     # Return success along with the extracted user ID and window info
     result = {
@@ -253,5 +312,23 @@ if __name__ == "__main__":
     print(f"Tampered Token: {tampered_token}")
     is_valid, data = verify_token(tampered_token, test_secret)
     print(f"Valid: {is_valid} | Data: {data}\n")
+    
+    # Test 8: Replay attack protection
+    print("--- Test 8: Replay attack protection ---")
+    replay_token = generate_token("user_456", test_secret)
+    print(f"Generated Token: {replay_token}")
+    is_valid, data = verify_token(replay_token, test_secret)
+    print(f"First use - Valid: {is_valid} | Data: {data}")
+    is_valid, data = verify_token(replay_token, test_secret)
+    print(f"Second use (replay) - Valid: {is_valid} | Data: {data}\n")
+    
+    # Test 9: Replay protection disabled
+    print("--- Test 9: Replay protection disabled ---")
+    replay_token2 = generate_token("user_789", test_secret)
+    print(f"Generated Token: {replay_token2}")
+    is_valid, data = verify_token(replay_token2, test_secret, check_replay=False)
+    print(f"First use (replay disabled) - Valid: {is_valid} | Data: {data}")
+    is_valid, data = verify_token(replay_token2, test_secret, check_replay=False)
+    print(f"Second use (replay disabled) - Valid: {is_valid} | Data: {data}\n")
     
     print("=== Demo Complete ===")
