@@ -12,6 +12,7 @@ from .config import (
     WINDOW_SIZE_SECONDS,
     MAX_TOKEN_LIFETIME_SECONDS
 )
+from .logger import logger
 
 
 def get_time_window(timestamp=None):
@@ -68,4 +69,13 @@ def generate_token(user_id, secret_key, max_lifetime_seconds=None):
     
     # Combine payload and signature with a single dot '.' delimiter to form the final token
     token = f"{encoded_payload.decode('utf-8')}.{encoded_signature.decode('utf-8')}"
+    
+    # Log token generation
+    logger.info(
+        f"Token generated - user_id={user_id}, "
+        f"time_window={time_window}, "
+        f"expiration={expiration_time}, "
+        f"lifetime={max_lifetime_seconds}s"
+    )
+    
     return token

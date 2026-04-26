@@ -17,6 +17,7 @@ from .config import (
     MAX_TOKEN_LIFETIME_SECONDS
 )
 from .generation import get_time_window
+from .logger import logger
 
 
 # Simple in-memory token cache for replay protection
@@ -118,6 +119,7 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     
     # SECURE COMPARISON: hmac.compare_digest prevents "timing attacks" where attackers guess the signature letter by letter
     if not hmac.compare_digest(encoded_signature, expected_encoded_signature):
+        logger.warning(f"Token verification failed - signature mismatch")
         return False, "Signature verification failed"
         
     # If the signature is valid, decode the payload to check the time window and expiration
@@ -146,6 +148,10 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
         # If client clock is behind, token might appear expired when it's still valid
         adjusted_expiration = expiration_time + clock_skew_tolerance
         if current_time > adjusted_expiration:
+            logger.warning(
+                f"Token verification failed - expired: "
+                f"user_id={user_id}, expired_at={expiration_time}, current={current_time}"
+            )
             return False, f"Token expired (expired at {expiration_time}, current time {current_time})"
     
     # Get current time window
@@ -156,14 +162,25 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     
     # Check if the token's window is within the allowed validation window
     if window_diff > validation_window:
+        logger.warning(
+            f"Token verification failed - window expired: "
+            f"user_id={user_id}, window_diff={window_diff}, allowed={validation_window}"
+        )
         return False, f"Token window expired (difference: {window_diff} windows, allowed: {validation_window})"
     
     # Additional check: reject tokens that are too far in the future (clock skew protection)
     if token_window > current_window + (clock_skew_tolerance // WINDOW_SIZE_SECONDS):
+        logger.warning(
+            f"Token verification failed - future token: "
+            f"user_id={user_id}, token_window={token_window}, current={current_window}"
+        )
         return False, f"Token from future (clock skew too large: {token_window - current_window} seconds)"
     
     # Check for replay attack
     if check_replay and _is_token_replayed(token):
+        logger.warning(
+            f"Token verification failed - replay attack: user_id={user_id}"
+        )
         return False, "Token already used (replay attack detected)"
     
     # Return success along with the extracted user ID and window info
@@ -176,5 +193,12 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     if expiration_time is not None:
         result["expiration_time"] = expiration_time
         result["time_until_expiration"] = expiration_time - current_time
+    
+    # Log successful verification
+    logger.info(
+        f"Token verified successfully - user_id={user_id}, "
+        f"window_diff={window_diff}, "
+        f"time_until_expiration={result.get('time_until_expiration', 'N/A')}"
+    )
     
     return True, result
