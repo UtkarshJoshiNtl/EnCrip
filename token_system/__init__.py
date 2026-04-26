@@ -5,6 +5,7 @@ A minimal, secure token system with:
 - Absolute expiration (5-minute max lifetime)
 - Clock skew tolerance (15 seconds)
 - Replay attack protection
+- REST API layer (FastAPI)
 """
 
 from .config import (
