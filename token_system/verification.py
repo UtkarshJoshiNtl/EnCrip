@@ -61,13 +61,13 @@ def _is_token_replayed(token):
     if not ENABLE_REPLAY_PROTECTION:
         return False
     
+    # Run cleanup periodically (outside the lock to avoid deadlock)
+    _cleanup_old_tokens()
+    
     # Create a hash of the token for storage (don't store full token)
     token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
     
     with _cache_lock:
-        # Run cleanup periodically
-        _cleanup_old_tokens()
-        
         # Check if token was already used
         if token_hash in _used_tokens:
             return True
@@ -139,6 +139,16 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
             user_id, token_window = decoded_payload.split(':')
             token_window = int(token_window)
             expiration_time = None
+            # Add max age check for old token format to prevent non-expiring tokens
+            current_window = get_time_window()
+            window_diff_count = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
+            max_age_windows = MAX_TOKEN_LIFETIME_SECONDS // WINDOW_SIZE_SECONDS
+            if window_diff_count > max_age_windows:
+                logger.warning(
+                    f"Token verification failed - old format token too old: "
+                    f"user_id={user_id}, window_diff_count={window_diff_count}, max_allowed={max_age_windows}"
+                )
+                return False, f"Old format token expired (too old: {window_diff_count} windows, max allowed: {max_age_windows})"
         except ValueError:
             return False, "Invalid payload format"
     
@@ -158,15 +168,15 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     current_window = get_time_window()
     
     # Calculate the difference in windows
-    window_diff = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
+    window_diff_count = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
     
     # Check if the token's window is within the allowed validation window
-    if window_diff > validation_window:
+    if window_diff_count > validation_window:
         logger.warning(
             f"Token verification failed - window expired: "
-            f"user_id={user_id}, window_diff={window_diff}, allowed={validation_window}"
+            f"user_id={user_id}, window_diff_count={window_diff_count}, allowed={validation_window}"
         )
-        return False, f"Token window expired (difference: {window_diff} windows, allowed: {validation_window})"
+        return False, f"Token window expired (difference: {window_diff_count} windows, allowed: {validation_window})"
     
     # Additional check: reject tokens that are too far in the future (clock skew protection)
     if token_window > current_window + (clock_skew_tolerance // WINDOW_SIZE_SECONDS):
@@ -188,7 +198,7 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
         "user_id": user_id,
         "token_window": token_window,
         "current_window": current_window,
-        "window_diff": window_diff
+        "window_diff_count": window_diff_count
     }
     if expiration_time is not None:
         result["expiration_time"] = expiration_time
@@ -197,7 +207,7 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     # Log successful verification
     logger.info(
         f"Token verified successfully - user_id={user_id}, "
-        f"window_diff={window_diff}, "
+        f"window_diff_count={window_diff_count}, "
         f"time_until_expiration={result.get('time_until_expiration', 'N/A')}"
     )
     

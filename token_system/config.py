@@ -3,6 +3,8 @@
 Handles all configuration constants and secret key management.
 """
 
+import os
+
 # Time window configuration
 WINDOW_SIZE_SECONDS = 10  # Tokens rotate every 10 seconds
 VALIDATION_WINDOW = 1     # Allow tokens from ±1 window (±10 seconds)
@@ -25,4 +27,4 @@ def get_default_secret_key():
     
     WARNING: In production, load this from environment variables or secure vault.
     """
-    return "my_super_secret_key"
+    return os.environ.get('TOKEN_SECRET_KEY', 'my_super_secret_key')
