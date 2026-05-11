@@ -42,9 +42,9 @@ def send_command_to_worker(
     )
     
     # Prepare the request payload
+    # Note: secret_key is NOT sent to worker - token signature is sufficient
     payload = {
-        "token": token,
-        "secret_key": secret_key
+        "token": token
     }
     
     # Send the request to the worker

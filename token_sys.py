@@ -9,6 +9,7 @@ import hashlib
 
 # Import from new modular structure
 from token_system import generate_token, verify_token, get_time_window
+from token_system.config import WINDOW_SIZE_SECONDS
 
 # Quick test execution
 if __name__ == "__main__":

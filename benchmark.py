@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Comprehensive benchmark suite for EnCrip token system.
+Comprehensive benchmark suite for EnCrip - Secure Distributed Execution Framework.
 
-Stress tests token generation, verification, and API performance under various loads.
+Stress tests distributed command execution across worker nodes with cryptographic authentication.
 """
 
 import time
@@ -257,6 +257,125 @@ def benchmark_memory_usage(count: int = 50000) -> Dict:
     }
 
 
+def benchmark_distributed_execution(worker_count: int = 3, commands_per_worker: int = 100) -> Dict:
+    """Benchmark distributed command execution across multiple worker nodes.
+    
+    This is the REAL benchmark for the distributed execution framework.
+    It spawns worker nodes, sends commands via controller, and measures end-to-end performance.
+    """
+    print(f"🖥️  Benchmarking distributed execution ({worker_count} workers, {commands_per_worker} commands each)...")
+    
+    secret_key = get_default_secret_key()
+    base_port = 8001
+    worker_urls = []
+    worker_processes = []
+    
+    # Start worker nodes
+    print(f"Starting {worker_count} worker nodes...")
+    for i in range(worker_count):
+        port = base_port + i
+        worker_url = f"http://localhost:{port}"
+        worker_urls.append(worker_url)
+        
+        # Start worker API server
+        process = subprocess.Popen([
+            sys.executable, "-m", "token_system.api"
+        ], env={**os.environ, "PORT": str(port)},
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        worker_processes.append(process)
+        
+        # Wait for worker to start
+        time.sleep(1)
+    
+    print(f"Worker nodes started on ports: {base_port}-{base_port + worker_count - 1}")
+    print("Waiting for workers to be ready...")
+    time.sleep(2)
+    
+    # Verify workers are responding
+    for worker_url in worker_urls:
+        try:
+            response = requests.get(f"{worker_url}/", timeout=5)
+            if response.status_code != 200:
+                print(f"❌ Worker {worker_url} not responding")
+                for p in worker_processes:
+                    p.kill()
+                return {"error": f"Worker {worker_url} not responding"}
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Worker {worker_url} failed: {e}")
+            for p in worker_processes:
+                p.kill()
+            return {"error": f"Worker {worker_url} failed: {e}"}
+    
+    print("✅ All workers ready")
+    
+    # Benchmark distributed execution using controller pattern
+    execution_times = []
+    successful_executions = 0
+    failed_executions = 0
+    
+    start_time = time.time()
+    
+    for worker_url in worker_urls:
+        for i in range(commands_per_worker):
+            command = "echo hello world"
+            user_id = f"benchmark_user_{worker_url.split(':')[-1]}_{i}"
+            
+            # Generate token with embedded command
+            token = generate_token(
+                user_id=user_id,
+                secret_key=secret_key,
+                command=command,
+                max_lifetime_seconds=300
+            )
+            
+            # Send to worker via /execute endpoint
+            exec_start = time.time()
+            try:
+                response = requests.post(
+                    f"{worker_url}/execute",
+                    json={"token": token},
+                    timeout=35
+                )
+                exec_end = time.time()
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("success") and "hello world" in result.get("stdout", ""):
+                        execution_times.append(exec_end - exec_start)
+                        successful_executions += 1
+                    else:
+                        failed_executions += 1
+                else:
+                    failed_executions += 1
+            except requests.exceptions.RequestException:
+                failed_executions += 1
+    
+    total_time = time.time() - start_time
+    total_commands = worker_count * commands_per_worker
+    
+    # Cleanup: kill all worker processes
+    print("Cleaning up worker nodes...")
+    for process in worker_processes:
+        process.kill()
+    
+    print(f"✅ Distributed execution benchmark complete")
+    
+    return {
+        "worker_count": worker_count,
+        "commands_per_worker": commands_per_worker,
+        "total_commands": total_commands,
+        "successful_executions": successful_executions,
+        "failed_executions": failed_executions,
+        "success_rate": successful_executions / total_commands if total_commands > 0 else 0,
+        "total_time_seconds": total_time,
+        "commands_per_second": successful_executions / total_time if total_time > 0 else 0,
+        "avg_execution_time_ms": statistics.mean(execution_times) * 1000 if execution_times else 0,
+        "median_execution_time_ms": statistics.median(execution_times) * 1000 if execution_times else 0,
+        "p95_execution_time_ms": sorted(execution_times)[int(len(execution_times) * 0.95)] * 1000 if execution_times else 0,
+        "p99_execution_time_ms": sorted(execution_times)[int(len(execution_times) * 0.99)] * 1000 if execution_times else 0
+    }
+
+
 def benchmark_api_performance(base_url: str = "http://localhost:8000", count: int = 1000) -> Dict:
     """Benchmark REST API performance."""
     print(f"🌐 Benchmarking API performance ({count:,} requests)...")
@@ -366,12 +485,22 @@ def run_stress_test() -> Dict:
     
     results = BenchmarkResults()
     
-    # Individual benchmarks
+    # Core token benchmarks
     results.add_result("token_generation", benchmark_token_generation(10000))
     results.add_result("token_verification", benchmark_token_verification(10000))
     results.add_result("concurrent_operations", benchmark_concurrent_operations(50, 200))
     results.add_result("replay_cache_performance", benchmark_replay_cache_performance(10000))
     results.add_result("memory_usage", benchmark_memory_usage(50000))
+    
+    # THE REAL BENCHMARK: Distributed execution across worker nodes
+    print("\n" + "=" * 60)
+    print("🖥️  DISTRIBUTED EXECUTION BENCHMARK (Core Functionality)")
+    print("=" * 60)
+    distributed_results = benchmark_distributed_execution(worker_count=3, commands_per_worker=50)
+    if "error" not in distributed_results:
+        results.add_result("distributed_execution", distributed_results)
+    else:
+        print(f"⚠️  Distributed execution benchmark skipped: {distributed_results['error']}")
     
     # API benchmark (optional, may fail if server issues)
     api_results = benchmark_api_performance(count=1000)
@@ -386,7 +515,7 @@ def run_stress_test() -> Dict:
 
 def main():
     """Main benchmark runner."""
-    print("🚀 EnCrip Token System Benchmark Suite")
+    print("🚀 EnCrip - Secure Distributed Execution Framework Benchmark Suite")
     print("=" * 60)
     
     # Run benchmarks
@@ -402,6 +531,15 @@ def main():
     # Print summary
     print("\n📈 Performance Summary:")
     print("-" * 40)
+    
+    if "distributed_execution" in results["benchmarks"]:
+        dist = results["benchmarks"]["distributed_execution"]
+        print(f"🖥️  DISTRIBUTED EXECUTION: {dist['commands_per_second']:.2f} commands/sec")
+        print(f"   Workers: {dist['worker_count']}")
+        print(f"   Success Rate: {dist['success_rate']*100:.1f}%")
+        print(f"   Avg Latency: {dist['avg_execution_time_ms']:.2f}ms")
+        print(f"   P95 Latency: {dist['p95_execution_time_ms']:.2f}ms")
+        print()
     
     if "token_generation" in results["benchmarks"]:
         gen = results["benchmarks"]["token_generation"]
