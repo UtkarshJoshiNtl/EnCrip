@@ -1,0 +1,75 @@
+{
+  "system_info": {
+    "cpu_count": 12,
+    "memory_gb": 3.4328155517578125,
+    "python_version": "3.13.5 (main, Jun 25 2025, 18:55:22) [GCC 14.2.0]",
+    "platform": "linux"
+  },
+  "benchmarks": {
+    "token_generation": {
+      "total_tokens": 10000,
+      "total_time_seconds": 1.2638883590698242,
+      "tokens_per_second": 7912.091228816788,
+      "avg_time_per_token_ms": 0.12544689178466797,
+      "median_time_per_token_ms": 0.0762939453125,
+      "p95_time_per_token_ms": 0.12135505676269531,
+      "p99_time_per_token_ms": 0.17952919006347656,
+      "min_time_per_token_ms": 0.014781951904296875,
+      "max_time_per_token_ms": 93.91021728515625
+    },
+    "token_verification": {
+      "total_tokens": 10000,
+      "total_time_seconds": 0.806354284286499,
+      "tokens_per_second": 12401.496705444406,
+      "avg_time_per_token_ms": 0.08021485805511475,
+      "median_time_per_token_ms": 0.07510185241699219,
+      "p95_time_per_token_ms": 0.11014938354492188,
+      "p99_time_per_token_ms": 0.14853477478027344,
+      "min_time_per_token_ms": 0.018835067749023438,
+      "max_time_per_token_ms": 1.1944770812988281,
+      "success_rate": 1.0
+    },
+    "concurrent_operations": {
+      "thread_count": 50,
+      "operations_per_thread": 200,
+      "total_operations": 10000,
+      "total_time_seconds": 3.6518611907958984,
+      "operations_per_second": 2738.329711217903,
+      "avg_time_per_operation_ms": 18.02401933670044,
+      "median_time_per_operation_ms": 16.359448432922363,
+      "p95_time_per_operation_ms": 20.622968673706055,
+      "p99_time_per_operation_ms": 102.86879539489746
+    },
+    "replay_cache_performance": {
+      "total_tokens": 10000,
+      "first_pass_time_seconds": 0.9288303852081299,
+      "second_pass_time_seconds": 0.8057239055633545,
+      "first_pass_tokens_per_second": 10766.228322471628,
+      "second_pass_tokens_per_second": 12411.199333856299,
+      "first_pass_avg_time_ms": 0.09246001243591309,
+      "second_pass_avg_time_ms": 0.08015761375427247,
+      "replay_detection_success_rate": 1.0
+    },
+    "memory_usage": {
+      "total_tokens": 50000,
+      "initial_memory_mb": 38.359375,
+      "generation_memory_mb": 43.984375,
+      "verification_memory_mb": 51.890625,
+      "memory_increase_during_generation_mb": 5.625,
+      "memory_increase_during_verification_mb": 7.90625,
+      "memory_per_token_bytes": 283.77088
+    },
+    "api_performance": {
+      "total_generation_requests": 1000,
+      "successful_generation_requests": 1000,
+      "generation_time_seconds": 2.2851057052612305,
+      "generation_requests_per_second": 437.6165171254873,
+      "avg_generation_time_ms": 2.283154010772705,
+      "verification_requests": 100,
+      "verification_time_seconds": 0.22162723541259766,
+      "verification_requests_per_second": 451.20808285963864,
+      "avg_verification_time_ms": 2.2151660919189453
+    }
+  },
+  "timestamp": 1778498078.3238947
+}

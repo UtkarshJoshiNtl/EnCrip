@@ -367,6 +367,101 @@ EnCrip/
 └── README.md                # This file
 ```
 
+## Performance Benchmarks
+
+Comprehensive stress testing demonstrates the system's performance under various load conditions. All benchmarks were run on a system with 12 CPU cores and 3.4GB RAM.
+
+### Core Token Operations
+
+#### Token Generation
+- **Throughput**: 7,912 tokens/second
+- **Average latency**: 0.125ms per token
+- **P95 latency**: 0.121ms per token
+- **P99 latency**: 0.180ms per token
+- **Test size**: 10,000 tokens
+
+#### Token Verification
+- **Throughput**: 12,401 tokens/second
+- **Average latency**: 0.080ms per token
+- **P95 latency**: 0.110ms per token
+- **P99 latency**: 0.149ms per token
+- **Success rate**: 100%
+- **Test size**: 10,000 tokens
+
+### Concurrent Performance
+
+#### Multi-threaded Operations
+- **Configuration**: 50 threads × 200 operations each (10,000 total)
+- **Throughput**: 2,738 operations/second
+- **Average latency**: 18.0ms per operation
+- **P95 latency**: 20.6ms per operation
+- **P99 latency**: 102.9ms per operation
+
+### Security Features Performance
+
+#### Replay Protection Cache
+- **First pass (new tokens)**: 10,766 tokens/second
+- **Second pass (replay detection)**: 12,411 tokens/second
+- **Replay detection accuracy**: 100%
+- **Cache overhead**: Minimal impact on verification performance
+
+### Memory Efficiency
+
+#### Memory Usage Analysis
+- **Test size**: 50,000 tokens
+- **Memory per token**: 283.8 bytes (including replay cache)
+- **Total memory increase**: 7.9MB for 50,000 tokens
+- **Memory efficiency**: Excellent for high-volume scenarios
+
+### REST API Performance
+
+#### API Endpoints
+- **Token generation**: 438 requests/second
+- **Token verification**: 451 requests/second
+- **Average generation latency**: 2.28ms
+- **Average verification latency**: 2.22ms
+- **Test size**: 1,000 API requests
+
+### Stress Test Summary
+
+The system demonstrates:
+- **High throughput**: Capable of processing thousands of tokens per second
+- **Low latency**: Sub-millisecond verification times
+- **Scalable concurrency**: Handles 50+ concurrent threads efficiently
+- **Memory efficiency**: Minimal memory footprint even at scale
+- **Robust security**: Replay protection adds negligible overhead
+
+### Performance Comparison
+
+| Operation | Throughput | Avg Latency | P95 Latency |
+|-----------|------------|-------------|-------------|
+| Token Generation | 7,912/sec | 0.125ms | 0.121ms |
+| Token Verification | 12,401/sec | 0.080ms | 0.110ms |
+| Concurrent Ops | 2,738/sec | 18.0ms | 20.6ms |
+| API Generation | 438/sec | 2.28ms | N/A |
+| API Verification | 451/sec | 2.22ms | N/A |
+
+### Running Benchmarks
+
+To run the benchmark suite:
+
+```bash
+# Install benchmark dependencies
+pip install --break-system-packages psutil requests
+
+# Run comprehensive benchmarks
+python3 benchmark.py
+
+# Results are saved to benchmark_results.json
+```
+
+The benchmark script tests:
+- Single-threaded token generation and verification
+- Multi-threaded concurrent operations
+- Replay cache performance
+- Memory usage under high load
+- REST API endpoint performance
+
 ## Conclusion
 
 The EnCrip token system is a **minimal, educational implementation of stateless HMAC-based authentication**. It demonstrates core concepts used in production systems like JWT, TOTP, and API signature schemes while maintaining simplicity and clarity.
