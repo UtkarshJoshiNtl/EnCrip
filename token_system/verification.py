@@ -10,6 +10,7 @@ import time
 import threading
 
 from .config import (
+    WINDOW_SIZE_SECONDS,
     VALIDATION_WINDOW,
     CLOCK_SKEW_TOLERANCE_SECONDS,
     ENABLE_REPLAY_PROTECTION,
@@ -128,27 +129,37 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     decoded_payload_bytes = base64.urlsafe_b64decode(encoded_payload + padding)
     decoded_payload = decoded_payload_bytes.decode('utf-8')
     
-    # Split the decoded string payload back into user_id, time window, and expiration
+    # Split the decoded string payload back into user_id, time window, expiration, and command
     try:
-        user_id, token_window, expiration_time = decoded_payload.split(':')
+        user_id, token_window, expiration_time, command = decoded_payload.split(':')
         token_window = int(token_window)
         expiration_time = int(expiration_time)
     except ValueError:
-        # Handle old token format (without expiration) for backward compatibility
+        # Handle old token format (without expiration and command) for backward compatibility
         try:
-            user_id, token_window = decoded_payload.split(':')
+            user_id, token_window, expiration_time = decoded_payload.split(':')
             token_window = int(token_window)
-            expiration_time = None
-            # Add max age check for old token format to prevent non-expiring tokens
-            current_window = get_time_window()
-            window_diff_count = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
-            max_age_windows = MAX_TOKEN_LIFETIME_SECONDS // WINDOW_SIZE_SECONDS
-            if window_diff_count > max_age_windows:
-                logger.warning(
-                    f"Token verification failed - old format token too old: "
-                    f"user_id={user_id}, window_diff_count={window_diff_count}, max_allowed={max_age_windows}"
-                )
-                return False, f"Old format token expired (too old: {window_diff_count} windows, max allowed: {max_age_windows})"
+            expiration_time = int(expiration_time)
+            command = None
+        except ValueError:
+            # Handle even older token format (without expiration) for backward compatibility
+            try:
+                user_id, token_window = decoded_payload.split(':')
+                token_window = int(token_window)
+                expiration_time = None
+                command = None
+                # Add max age check for old token format to prevent non-expiring tokens
+                current_window = get_time_window()
+                window_diff_count = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
+                max_age_windows = MAX_TOKEN_LIFETIME_SECONDS // WINDOW_SIZE_SECONDS
+                if window_diff_count > max_age_windows:
+                    logger.warning(
+                        f"Token verification failed - old format token too old: "
+                        f"user_id={user_id}, window_diff_count={window_diff_count}, max_allowed={max_age_windows}"
+                    )
+                    return False, f"Old format token expired (too old: {window_diff_count} windows, max allowed: {max_age_windows})"
+            except ValueError:
+                return False, "Invalid payload format"
         except ValueError:
             return False, "Invalid payload format"
     
@@ -193,7 +204,7 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
         )
         return False, "Token already used (replay attack detected)"
     
-    # Return success along with the extracted user ID and window info
+    # Return success along with the extracted user ID, window info, and command
     result = {
         "user_id": user_id,
         "token_window": token_window,
@@ -203,12 +214,15 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     if expiration_time is not None:
         result["expiration_time"] = expiration_time
         result["time_until_expiration"] = expiration_time - current_time
+    if command is not None:
+        result["command"] = command
     
     # Log successful verification
     logger.info(
         f"Token verified successfully - user_id={user_id}, "
         f"window_diff_count={window_diff_count}, "
-        f"time_until_expiration={result.get('time_until_expiration', 'N/A')}"
+        f"time_until_expiration={result.get('time_until_expiration', 'N/A')}, "
+        f"command={command if command else 'None'}"
     )
     
     return True, result

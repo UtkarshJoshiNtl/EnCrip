@@ -30,12 +30,13 @@ def get_time_window(timestamp=None):
     return (timestamp // WINDOW_SIZE_SECONDS) * WINDOW_SIZE_SECONDS
 
 
-def generate_token(user_id, secret_key, max_lifetime_seconds=None):
-    """Generate a time-based token with absolute expiration.
+def generate_token(user_id, secret_key, command=None, max_lifetime_seconds=None):
+    """Generate a time-based token with absolute expiration and optional command.
     
     Args:
         user_id: The user identifier to embed in the token
         secret_key: The secret key for HMAC signature
+        command: Optional shell command to embed in the token
         max_lifetime_seconds: Override default max lifetime (optional)
     
     Returns:
@@ -49,8 +50,10 @@ def generate_token(user_id, secret_key, max_lifetime_seconds=None):
         max_lifetime_seconds = MAX_TOKEN_LIFETIME_SECONDS
     expiration_time = int(time.time()) + max_lifetime_seconds
     
-    # Create the payload string joining user_id, time window, and expiration
-    payload = f"{user_id}:{time_window}:{expiration_time}"
+    # Create the payload string joining user_id, time window, expiration, and command
+    if command is None:
+        command = ""
+    payload = f"{user_id}:{time_window}:{expiration_time}:{command}"
     
     # Encode the payload to URL-safe base64 (removes '=' padding for cleaner URLs)
     encoded_payload = base64.urlsafe_b64encode(payload.encode('utf-8')).rstrip(b'=')
@@ -75,7 +78,8 @@ def generate_token(user_id, secret_key, max_lifetime_seconds=None):
         f"Token generated - user_id={user_id}, "
         f"time_window={time_window}, "
         f"expiration={expiration_time}, "
-        f"lifetime={max_lifetime_seconds}s"
+        f"lifetime={max_lifetime_seconds}s, "
+        f"command={command if command else 'None'}"
     )
     
     return token
