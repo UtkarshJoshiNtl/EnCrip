@@ -4,11 +4,20 @@ A high-performance distributed execution framework with stateless HMAC-based aut
 
 ## Performance Benchmarks
 
-- **Token Generation**: 7,912/sec (0.125ms avg)
-- **Token Verification**: 12,401/sec (0.080ms avg)
-- **Concurrent Ops**: 2,738/sec (18ms avg, 50 threads)
-- **Memory**: 283 bytes per token (7.9MB for 50K tokens)
+**Tested Hardware:**
+- CPU: AMD Ryzen 5 7535HS (6 cores, 12 threads)
+- RAM: 3.4GB
+- OS: Linux 6.6.87.2-microsoft-standard-WSL2
+- Python: 3.13.5
+
+**Benchmark Results:**
+- **Token Generation**: 6,554/sec (0.152ms avg, P95: 0.101ms)
+- **Token Verification**: 5,387/sec (0.185ms avg, P95: 0.116ms)
+- **Concurrent Ops**: 1,801/sec (27.6ms avg, 50 threads × 200 ops)
+- **Memory**: 284.2 bytes per token (8.1MB for 50K tokens)
 - **Replay Protection**: 100% detection accuracy
+- **API Generation**: 451 req/sec (2.2ms avg)
+- **API Verification**: 440 req/sec (2.3ms avg)
 
 ## What It Does
 
