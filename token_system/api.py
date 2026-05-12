@@ -182,9 +182,17 @@ def execute_command_endpoint(request: ExecuteRequest):
     # Execute command
     start_time = time.time()
     try:
+        # Use shlex.split for safe command parsing to prevent injection
+        import shlex
+        try:
+            command_args = shlex.split(command)
+        except ValueError:
+            # If shlex fails, fall back to simple split (less safe but functional)
+            command_args = command.split()
+        
         process = subprocess.run(
-            command,
-            shell=True,
+            command_args,
+            shell=False,
             capture_output=True,
             text=True,
             timeout=30  # 30 second timeout

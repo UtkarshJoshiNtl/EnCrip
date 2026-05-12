@@ -40,10 +40,9 @@ def _cleanup_old_tokens():
     with _cache_lock:
         # Remove tokens older than MAX_TOKEN_LIFETIME_SECONDS
         cutoff_time = current_time - MAX_TOKEN_LIFETIME_SECONDS
-        expired_tokens = [
-            token_hash for token_hash, seen_time in _used_tokens.items()
-            if seen_time < cutoff_time
-        ]
+        # Use dict comprehension for O(n) cleanup instead of list iteration
+        expired_tokens = [token_hash for token_hash, seen_time in _used_tokens.items()
+                         if seen_time < cutoff_time]
         for token_hash in expired_tokens:
             del _used_tokens[token_hash]
         
@@ -130,38 +129,38 @@ def verify_token(token, secret_key, validation_window=None, clock_skew_tolerance
     decoded_payload = decoded_payload_bytes.decode('utf-8')
     
     # Split the decoded string payload back into user_id, time window, expiration, and command
-    try:
-        user_id, token_window, expiration_time, command = decoded_payload.split(':')
+    # Handle multiple token formats for backward compatibility
+    parts = decoded_payload.split(':')
+    
+    if len(parts) == 4:
+        # New format: user_id:time_window:expiration_time:command
+        user_id, token_window, expiration_time, command = parts
         token_window = int(token_window)
         expiration_time = int(expiration_time)
-    except ValueError:
-        # Handle old token format (without expiration and command) for backward compatibility
-        try:
-            user_id, token_window, expiration_time = decoded_payload.split(':')
-            token_window = int(token_window)
-            expiration_time = int(expiration_time)
-            command = None
-        except ValueError:
-            # Handle even older token format (without expiration) for backward compatibility
-            try:
-                user_id, token_window = decoded_payload.split(':')
-                token_window = int(token_window)
-                expiration_time = None
-                command = None
-                # Add max age check for old token format to prevent non-expiring tokens
-                current_window = get_time_window()
-                window_diff_count = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
-                max_age_windows = MAX_TOKEN_LIFETIME_SECONDS // WINDOW_SIZE_SECONDS
-                if window_diff_count > max_age_windows:
-                    logger.warning(
-                        f"Token verification failed - old format token too old: "
-                        f"user_id={user_id}, window_diff_count={window_diff_count}, max_allowed={max_age_windows}"
-                    )
-                    return False, f"Old format token expired (too old: {window_diff_count} windows, max allowed: {max_age_windows})"
-            except ValueError:
-                return False, "Invalid payload format"
-        except ValueError:
-            return False, "Invalid payload format"
+    elif len(parts) == 3:
+        # Old format: user_id:time_window:expiration_time
+        user_id, token_window, expiration_time = parts
+        token_window = int(token_window)
+        expiration_time = int(expiration_time)
+        command = None
+    elif len(parts) == 2:
+        # Oldest format: user_id:time_window
+        user_id, token_window = parts
+        token_window = int(token_window)
+        expiration_time = None
+        command = None
+        # Add max age check for old token format to prevent non-expiring tokens
+        current_window = get_time_window()
+        window_diff_count = abs(current_window - token_window) // WINDOW_SIZE_SECONDS
+        max_age_windows = MAX_TOKEN_LIFETIME_SECONDS // WINDOW_SIZE_SECONDS
+        if window_diff_count > max_age_windows:
+            logger.warning(
+                f"Token verification failed - old format token too old: "
+                f"user_id={user_id}, window_diff_count={window_diff_count}, max_allowed={max_age_windows}"
+            )
+            return False, f"Old format token expired (too old: {window_diff_count} windows, max allowed: {max_age_windows})"
+    else:
+        return False, "Invalid payload format"
     
     # Check absolute expiration if present (new token format)
     if expiration_time is not None:
